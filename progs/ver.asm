@@ -40,7 +40,7 @@ ver_init:
   or r2, r2, r11
   store_32 [r3], r2
   add r3, r3, 4
-  mov r2, 0x312E
+  mov r2, 0x332E
   lsl r2, r2, 16
   mov r11, 0x3000
   or r2, r2, r11

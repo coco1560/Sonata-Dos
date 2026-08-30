@@ -18,7 +18,7 @@
 //
 // 交互按键:
 //   Ctrl+C 退出   Ctrl+P 暂停/继续   Ctrl+T 3 倍速开关   Ctrl+K 发送 CapsLock(0x18)
-//   键码: Esc=1, Enter=10, Backspace=13, Tab=9; 其它键按 ASCII 发按下+弹起
+//   键码: Esc=14, Enter=10, Backspace=13, Tab=9; 其它键按 ASCII 发按下+弹起
 // ============================================================================
 import fs from "node:fs";
 import path from "node:path";
@@ -113,7 +113,7 @@ function render() {
 }
 
 // ---------- 按键输入 ----------
-const KEY = { ENTER: 10, BACK: 13, ESC: 1, TAB: 9, CAPS: 0x18 };
+const KEY = { ENTER: 10, BACK: 13, ESC: 14, TAB: 9, CAPS: 0x18 }; // Esc = 游戏实测键码
 let escBuf = null, escTimer = null, quitting = false;
 
 function pushKey(c) {

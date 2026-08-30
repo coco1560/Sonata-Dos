@@ -1,16 +1,15 @@
 ; =====================================================================
 ; SNAKE.MVT — 贪吃蛇(DOS 移植版)
-; 控制: W/A/S/D 方向(大小写均可), Esc 退出回 DOS
+; 控制: W/A/S/D 方向(大小写均可), Esc(键码 14)退出回 DOS
 ; AUTO_MODE = 1 -> 自动; 0 -> 手动(默认)
 ; 修复: 1) 只响应按下事件(原代码把弹起当按键)
 ;       2) 字母大小写规范化(原代码只认小写)
-;       3) 闪屏: 去掉每帧 clear_board 全清(2048 格逐字节写), 改增量重绘
-;          (每帧只擦旧蛇尾 + 重绘蛇身, 格子用 store_32 一次写入)
-;          擦尾放在整帧画完之后(先画新帧最后擦尾), 中间态无空洞不闪
-;       4) 速度: 规定 FPS 的固定节拍 —— 每帧等待 "现在 + TICK"(相对时刻表,
-;          帧间隔 ≈ TICK + 帧耗时)。已用 timecal.asm 实测标定:
-;          10 秒 dt=0x4B446770 -> 每秒 126,277,413 刻度 -> 1 格/秒 TICK=126,277,413
-;          相对时刻表防连跳: 游戏时间跳变/卡顿后最多补一帧, 不会闪现一大截
+;       3) 闪屏: 增量重绘 + 双缓冲 —— 全部画到后备缓冲 BB(0xB000),
+;          每帧画完后线性整块拷到可见屏幕(3072 字); 屏幕只在这段拷贝中更新,
+;          中间态 = 几乎相同的新旧帧, 游戏渲染器采样不到"空洞/重影"等错误帧
+;       4) 速度: 自校准指令等待 —— 启动时空转 32 万次测 time_0 速率, 反算
+;          每帧等待次数, 使每帧 ≈ 0.125 秒真实时间(8 格/秒), 任何时钟频率下
+;          表现一致; 等待本身是指令计数, 时钟波动不会造成冲刺
 ;       5) 穿墙回绕(不再撞墙死亡); 撞到自己时显示 GAME OVER 并等任意键回 DOS
 ; 移植: FB 0x4000->0x3000(屏幕固定地址); 数据区 0x1000->0x2400(避开 boot);
 ;       栈 0x8000->STACKTOP 0x7000(避开加载区); Esc/撞墙 -> cls + exit_proc
@@ -19,6 +18,7 @@ const AUTO_MODE = 0
 
 ; 常量
 const FB        = 0x3000   ; ASCII32 帧缓冲(DOS 屏幕固定 12288)
+; 后备缓冲 bb = 程序末尾的 space 8192(随程序一起加载, 永在蛇自身内存块内, 不受堆碎片影响)
 const SEED      = 0x2400
 const FOOD_X    = 0x2402
 const FOOD_Y    = 0x2403
@@ -27,7 +27,7 @@ const DIR       = 0x2405
 const MODE      = 0x2406
 const NEW_X     = 0x2407
 const NEW_Y     = 0x2408
-const NEXT_TICK = 0x240C   ; 下一帧时刻(32 位)
+const WAIT_CNT  = 0x240C   ; 自校准结果: 每帧等待循环次数(32 位)
 const SNAKE_X   = 0x2500
 const SNAKE_Y   = 0x2600
 const BODY_COLORS = 0x2700
@@ -44,12 +44,15 @@ const KEY_W = 0x57
 const KEY_A = 0x41
 const KEY_S = 0x53
 const KEY_D = 0x44
+const KEY_ESC = 14         ; Esc 键码(游戏实测)
 
-const FPS = 1                ; 目标帧率(格/秒)
-const TICKS_PER_SEC = 1000000000 ; 游戏 time_0 = Unix 纳秒(1e9/秒, 由 DATE 反推校准)
-; 每帧节拍 TICK = TICKS_PER_SEC / FPS = 1000000000 = 0x3B9ACA00(超 16 位立即数, 拆 hi/lo 合成)
-const TICK_HI = 0x3B9A
-const TICK_LO = 0xCA00
+; 自校准指令等待: 启动时空转 320000 次测 time_0 增量(≈0.96 秒@1MHz),
+; 反算每帧等待次数 = (125,000,000ns × 320000) / 增量  -> 任何时钟频率下
+; 每帧都 ≈ 0.125 秒真实时间 = 8 格/秒。等待本身是指令计数,
+; 模拟时钟波动不会造成冲刺(只会让校准有 ±1% 左右的漂移)。
+const CAL_LOOPS_HI = 0x4
+const CAL_LOOPS_LO = 0xE200 ; CAL_LOOPS = 320000 = 0x4E200(位 18/15/14/13/9)
+const TARGET_HI = 0x0773     ; TARGET>>16(125,000,000ns = 0.125 秒 >> 16 = 1907, 即 8 格/秒)
 const CLR_RED = 0xE0          ; GAME OVER 提示色
 
 ; =====================================================================
@@ -67,6 +70,7 @@ main:
     screen r1, r2
 
     call clear_screen
+    call clear_bb
 
     time_0 r1
     store_16 [SEED], r1
@@ -105,8 +109,10 @@ main:
     store_8 [r2], r1
 
     call update_gradient
-    call spawn_food         ; 选点后直接画食物
-    call draw_snake         ; 初始蛇(一次性绘制)
+    call spawn_food         ; 选点后直接画食物(后备缓冲)
+    call draw_snake         ; 初始蛇(后备缓冲)
+    call copy_board         ; 首次上屏
+    call calibrate          ; 自校准每帧等待计数(约 1 秒空转)
 
 game_loop:
     call wait_next           ; 等到下一拍(每帧间隔恒为 TICK, 与绘制开销无关)
@@ -119,6 +125,13 @@ game_loop:
 ; 输入 r1=x, r2=y; 输出 r4=地址
 ; =====================================================================
 cell_addr:
+    lsl r4, r2, 6
+    add r4, r4, r1
+    add r4, r4, bb
+    ret
+
+; 可见帧缓冲格子地址(仅启动清屏用)
+cell_addr_fb:
     lsl r4, r2, 6
     lsl r5, r2, 5
     add r4, r4, r5
@@ -142,7 +155,7 @@ clear_screen_x:
 
     mov r1, r7
     mov r2, r6
-    call cell_addr
+    call cell_addr_fb
 
     mov r3, 0x20
     store_8 [r4], r3
@@ -172,12 +185,8 @@ draw_food:
     load_8 r2, [FOOD_Y]
     call cell_addr
 
-    mov r3, 42
-    lsl r3, r3, 24          ; 字符 '*'
-    mov r5, 0xE0
-    lsl r5, r5, 16          ; 前景 0xE0(红)
-    or r3, r3, r5
-    store_32 [r4], r3
+    mov r3, 0xFF            ; 食物魔法值(拷贝时还原为 *+红前景)
+    store_8 [r4], r3
     ret
 
 ; =====================================================================
@@ -211,11 +220,7 @@ draw_head:
     mov r6, 0xFC
 
 draw_seg:
-    mov r3, 0x20
-    lsl r3, r3, 24          ; 字符空格 + 前景 0
-    lsl r5, r6, 8           ; 背景色(身体渐变/头黄)
-    or r3, r3, r5
-    store_32 [r4], r3
+    store_8 [r4], r6        ; 只存背景色字节(蛇身颜色 ≤ 0xE3, 与 0/0xFF 不冲突)
 
     add r8, r8, 1
     jmp draw_snake_loop
@@ -227,28 +232,161 @@ draw_snake_done:
 ; =====================================================================
 erase_cell:
     call cell_addr
-    mov r3, 0x20
-    lsl r3, r3, 24
-    store_32 [r4], r3
+    mov r3, 0
+    store_8 [r4], r3
     ret
 
 ; =====================================================================
-; 固定节拍等待(相对时刻表): 每帧等 "现在 + TICK"
-; 帧间隔 = TICK + 帧耗时(帧耗时远小于 TICK, 即约每秒 1 格)。
-; 用相对时刻而不是绝对截止时刻: 游戏时间跳变/卡顿后最多只补走一帧,
-; 绝不会出现"连跳一大截"的闪现。
+; 清空后备缓冲(整 96x40, 启动一次)
+; =====================================================================
+clear_bb:
+    mov r6, 0
+clear_bb_loop:
+    cmp r6, 512
+    jae clear_bb_done
+    lsl r7, r6, 2
+    add r7, r7, bb
+    mov r3, 0
+    store_32 [r7], r3
+    add r6, r6, 1
+    jmp clear_bb_loop
+clear_bb_done:
+    ret
+
+; =====================================================================
+; 后备缓冲(64 宽) -> 可见屏幕(96 宽)板面区域, 逐格映射拷贝
+; 可见屏幕只在这段拷贝中更新, 中间态是几乎相同的新旧帧, 不闪
+; =====================================================================
+copy_board:
+    mov r8, 0               ; y
+copy_board_y:
+    cmp r8, 32
+    jae copy_board_done
+    mov r9, 0               ; x
+copy_board_x:
+    cmp r9, 64
+    jae copy_board_ny
+    lsl r6, r8, 6
+    add r6, r6, r9
+    add r6, r6, bb          ; src = bb + y*64 + x(每格 1 字节)
+    load_8 r1, [r6]
+    cmp r1, 0
+    je copy_blank
+    cmp r1, 0xFF
+    je copy_food
+    ; 蛇格: 空格 + 背景色
+    mov r3, 0x20
+    lsl r3, r3, 24
+    lsl r5, r1, 8
+    or r3, r3, r5
+    jmp copy_store
+copy_blank:
+    mov r3, 0x20
+    lsl r3, r3, 24
+    jmp copy_store
+copy_food:
+    mov r3, 42
+    lsl r3, r3, 24          ; '*'
+    mov r5, 0xE0
+    lsl r5, r5, 16          ; 红前景
+    or r3, r3, r5
+copy_store:
+    lsl r7, r8, 6
+    lsl r5, r8, 5
+    add r7, r7, r5
+    add r7, r7, r9
+    lsl r7, r7, 2
+    add r7, r7, FB          ; dst = FB + (y*96+x)*4
+    store_32 [r7], r3
+    add r9, r9, 1
+    jmp copy_board_x
+copy_board_ny:
+    add r8, r8, 1
+    jmp copy_board_y
+copy_board_done:
+    ret
+
+; =====================================================================
+; 每帧等待(指令计数): 空转 WAIT_CNT 次(启动时按当前时钟自校准)
+; 任何时钟频率下每帧 ≈ 0.25 秒; 模拟时钟波动不会造成冲刺。
 ; =====================================================================
 wait_next:
-    time_0 r1
-    mov r3, TICK_HI
-    lsl r3, r3, 16
-    mov r4, TICK_LO
-    or r3, r3, r4            ; r3 = TICK(32 位节拍)
-    add r1, r1, r3           ; 目标 = 现在 + TICK
+    load_32 r6, [WAIT_CNT]
 wait_next_loop:
-    time_0 r2
-    cmp r2, r1
-    jb wait_next_loop
+    sub r6, r6, 1
+    cmp r6, 0
+    jne wait_next_loop
+    ret
+
+; =====================================================================
+; 自校准: 空转 CAL_LOOPS 次, 测 time_0 增量 delta,
+; 每帧等待次数 = (TARGET × CAL_LOOPS) >> 16 / (delta >> 16)
+; 校准结果写入 WAIT_CNT(32 位)。
+; =====================================================================
+calibrate:
+    time_0 r11
+    mov r6, CAL_LOOPS_HI
+    lsl r6, r6, 16
+    mov r7, CAL_LOOPS_LO
+    or r6, r6, r7            ; r6 = 320000
+cal_loop:
+    sub r6, r6, 1
+    cmp r6, 0
+    jne cal_loop
+    time_0 r13
+    sub r13, r13, r11        ; delta = time_0 增量
+    cmp r13, 0
+    jne cal_div
+    mov r13, 0x3938
+    lsl r13, r13, 16
+    mov r7, 0x7000
+    or r13, r13, r7          ; 兜底(异常时钟): 960000000 = 按 1MHz 计
+cal_div:
+    ; P = TARGET_HI × 320000 = 3814 × (2^18+2^15+2^14+2^13+2^9)
+    mov r8, 0
+    mov r3, TARGET_HI
+    mov r2, r3
+    lsl r2, r2, 18
+    add r8, r8, r2
+    mov r2, r3
+    lsl r2, r2, 15
+    add r8, r8, r2
+    mov r2, r3
+    lsl r2, r2, 14
+    add r8, r8, r2
+    mov r2, r3
+    lsl r2, r2, 13
+    add r8, r8, r2
+    mov r2, r3
+    lsl r2, r2, 9
+    add r8, r8, r2           ; r8 = P ≈ 1.22e9
+    lsr r13, r13, 16
+    mov r9, r8
+    mov r5, r13
+    call div32               ; r3 = 每帧等待次数
+    mov r8, WAIT_CNT
+    store_32 [r8], r3
+    ret
+
+; ---- 32位除法: r9 / r5 -> 商 r3, 余 r4(除数 < 2^31) ----
+div32:
+    mov r4, 0
+    mov r3, 0
+    mov r6, 32
+div32_loop:
+    lsl r3, r3, 1
+    lsl r4, r4, 1
+    lsr r7, r9, 31
+    or r4, r4, r7
+    lsl r9, r9, 1
+    cmp r4, r5
+    jb div32_skip
+    sub r4, r4, r5
+    or r3, r3, 1
+div32_skip:
+    sub r6, r6, 1
+    cmp r6, 0
+    jne div32_loop
     ret
 
 ; =====================================================================
@@ -272,7 +410,7 @@ manual_direction:
 
     and r1, r1, 0x7F
 
-    cmp r1, 1
+    cmp r1, KEY_ESC
     je exit_game
 
     ; 大小写规范化(a-z -> A-Z)
@@ -446,8 +584,9 @@ move_wrap_y_done:
     call shift_snake
     call set_head
     call update_gradient
-    call draw_snake          ; 渐变更新, 全身重绘
+    call draw_snake          ; 渐变更新, 全身重绘(后备缓冲)
     call spawn_food          ; 选点并绘制新食物(蛇头已盖住旧食物格)
+    call copy_board          ; 一次性上屏
     ret
 
 no_grow:
@@ -468,7 +607,8 @@ no_grow:
 
     mov r1, r9
     mov r2, r10
-    call erase_cell          ; 最后一步擦掉旧尾
+    call erase_cell          ; 最后一步擦掉旧尾(后备缓冲)
+    call copy_board          ; 一次性上屏(可见屏幕无中间态)
     ret
 
 ; =====================================================================
@@ -720,3 +860,7 @@ s_gameover:
 data8 "GAME OVER!"
 s_presskey:
 data8 "Press any key..."
+
+; ---- 后备缓冲(64x32 格, 每格 1 字节 = 2048B; 0=空, 0xFF=食物, 其余=蛇身背景色) ----
+bb:
+space 2048

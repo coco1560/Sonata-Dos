@@ -3,6 +3,8 @@
 ; 用法: WRITE <name>  -> 键入文本, Enter 换行, Backspace 退格, Esc 保存
 ; 名字已存在时: 数据文件覆盖, 其它类型报错
 ; ============================================================================
+const ESCRBASE = 0x3000     ; 屏幕帧缓冲
+const ESCR_W = 96
 main:
   load_32 r8, [ARGC]
   cmp r8, 2
@@ -77,10 +79,15 @@ write_ed:
   mov r11, 0
 write_key:
   call key_poll
+  mov r9, r4               ; 保存原始键码
   call key_translate
   cmp r4, 0
   je write_key
   cmp r4, CH_ESC
+  je write_commit
+  cmp r9, 14               ; 原始 Esc(游戏实测键码)双保险
+  je write_commit
+  cmp r9, 0x1B             ; 原始 Esc(27)双保险
   je write_commit
   cmp r4, CH_CAPS
   je write_tab
@@ -120,10 +127,57 @@ write_enter:
 write_bs:
   cmp r11, 0
   je write_key
+  ; 读上一个字节: 是换行则光标回上一行文本末尾, 否则普通退格
+  mov r2, r10
+  sub r2, r2, 1
+  mov r1, r2
+  and r3, r1, 3
+  sub r1, r1, r3
+  pload r5, [r1]
+  mov r7, 3
+  sub r7, r7, r3
+  lsl r7, r7, 3
+  lsr r5, r5, r7
+  and r5, r5, 0xFF
+  cmp r5, CHAR_NL
+  je write_bs_nl
+  ; 普通退格
   sub r10, r10, 1
   sub r11, r11, 1
   mov r1, CH_BS
   call print_char
+  jmp write_key
+write_bs_nl:
+  ; 删除换行符: 光标移到上一行文本末尾(整行空则列 0; 已在第 0 行则列 0)
+  sub r10, r10, 1
+  sub r11, r11, 1
+  load_32 r2, [CROW]
+  cmp r2, 0
+  je write_bs_col0
+  sub r2, r2, 1
+  store_32 [CROW], r2
+  mov r3, ESCR_W
+write_bs_scan:
+  sub r3, r3, 1
+  lsl r5, r2, 6
+  lsl r6, r2, 5
+  add r5, r5, r6
+  add r5, r5, r3
+  lsl r5, r5, 2
+  add r5, r5, ESCRBASE
+  load_8 r7, [r5]
+  cmp r7, 0x20
+  jne write_bs_end
+  cmp r3, 0
+  je write_bs_col0
+  jmp write_bs_scan
+write_bs_end:
+  add r3, r3, 1
+  store_32 [CCOL], r3
+  jmp write_key
+write_bs_col0:
+  mov r3, 0
+  store_32 [CCOL], r3
   jmp write_key
 write_commit:
   lsl r7, r13, 5

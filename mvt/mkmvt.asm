@@ -121,10 +121,15 @@ mkexe_ed:
   mov r12, 0
 mkexe_key:
   call key_poll
+  mov r8, r4               ; 保存原始键码
   call key_translate
   cmp r4, 0
   je mkexe_key
   cmp r4, CH_ESC
+  je mkexe_commit
+  cmp r8, 14               ; 原始 Esc(游戏实测键码)双保险
+  je mkexe_commit
+  cmp r8, 0x1B             ; 原始 Esc(27)双保险
   je mkexe_commit
   cmp r4, CH_CAPS
   je mkexe_tab

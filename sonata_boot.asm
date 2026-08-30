@@ -134,7 +134,7 @@ const CLR_RED    = 0xE0
 ; ---------- 键盘(实测) ----------
 const KEY_DOWN   = 0x0100
 const KEY_MASK   = 0x00FF
-const RAW_ESC    = 1
+const RAW_ESC    = 14   ; Esc 键原始码(游戏实测; 非 27/1)
 const RAW_BS     = 13
 const RAW_ENTER  = 10
 ;

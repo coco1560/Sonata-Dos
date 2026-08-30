@@ -45,7 +45,7 @@ function edit(s, content, extraWait = "") {
   if (extraWait) waitFor(extraWait, 30);
   else emu.run(1500000);
   emu.type(content);
-  emu.typeRaw([1]); // Esc 保存
+  emu.typeRaw([14]); // Esc 保存
   emu.run(4000000);
 }
 
@@ -54,7 +54,7 @@ console.log("boot bytes:", boot.bytes.length, " disk bytes:", disk.length);
 // ---------- 启动 ----------
 emu.run(4000000);
 check("启动: boot 信息被 DOS 清除(cls)", notContains("Sonata Boot"));
-check("启动: DOS 横幅", contains("Sonata DOS v1.0"));
+check("启动: DOS 横幅", contains("Sonata DOS v3.0"));
 check("启动: 随机格言", [
     "Talk is cheap", "Stay hungry", "Simplicity", "Any sufficiently",
     "Programs must", "Premature optimization", "The best way",
@@ -128,7 +128,7 @@ dirCmd();
 check("DIR SYSTEM: CLS.SCO", contains("CLS.SCO"));
 check("DIR SYSTEM: VER.SCO", contains("VER.SCO"));
 cmd("VER");
-check("VER: 版本号", contains("Sonata DOS v1.0"));
+check("VER: 版本号", contains("Sonata DOS v3.0"));
 cmd("CD \\");
 cmd("CD BIN");
 check("CD BIN: 路径 ~/BIN", contains("[Sonata] ~/BIN #"));
@@ -144,7 +144,7 @@ cmd("CREATE A.TXT");
 check("CREATE: Created.", contains("Created."));
 cmd("WRITE B.TXT");
 emu.type("hello world");
-emu.typeRaw([1]);
+emu.typeRaw([14]);
 emu.run(4000000);
 check("WRITE: Saved.", contains("Saved."));
 cmd("CLS");
@@ -174,7 +174,7 @@ emu.type("WRITE T.TXT\n");
 emu.run(1000000);
 emu.typeRaw([24]); // CapsLock 开锁
 emu.type("abc");
-emu.typeRaw([1]); // Esc 保存
+emu.typeRaw([14]); // Esc 保存
 emu.run(4000000);
 check("Tab 锁定后 WRITE: Saved.", contains("Saved."));
 cmd("CLS");
@@ -194,7 +194,7 @@ emu.type("REBOOT\n");
   check("REBOOT: 先出现 boot 横幅(重启到 boot)", sawBoot);
 }
 emu.run(3000000);
-check("REBOOT: 重新打印横幅", contains("Sonata DOS v1.0"));
+check("REBOOT: 重新打印横幅", contains("Sonata DOS v3.0"));
 check("REBOOT: 回到默认目录 ~/HOME", contains("[Sonata] ~/HOME #"));
 check("REBOOT: boot 横幅已被 DOS 清除", notContains("Sonata Boot"));
 // 大小写锁已被内存清零: 输入小写保持小写
@@ -326,22 +326,24 @@ emu.type("SNAKE\n");
     }
   }
   check("SNAKE: 游戏区出现蛇(彩色格子)", drawn);
-  // 越过第一拍(FPS=1: TICK=126,277,413 单位, 模拟器 126 单位/步 ≈ 100.2 万步)后蛇应前移一格
-  emu.run(1100000);
-  check("SNAKE: 固定节拍推进(蛇头 x=" + emu.main[0x2500] + ", 应从 24 前移)", emu.main[0x2500] === 25);
+  // 越过第一拍(自校准空转 ≈ 96 万步 + 每帧 ≈ 12.5 万步)后蛇应前移数格
+  emu.run(1300000);
   {
-    // 增量重绘正确性: 游戏区内蛇格(背景非 0)数必须等于蛇长(允许采样到擦尾瞬间 len-1)
-    const bgCells = [];
-    for (let y = 0; y < 32; y++) {
-      for (let x = 0; x < 64; x++) {
-        if (emu.main[0x3000 + (y * 96 + x) * 4 + 2] !== 0) bgCells.push([x, y]);
-      }
-    }
-    const len = emu.main[0x2404]; // SNAKE_LEN
-    check("SNAKE: 增量重绘无残影(蛇格数 = 长度, 得到 " + bgCells.length + " 格/长 " + len + ")",
-      bgCells.length <= len && bgCells.length >= len - 1);
+    const hx = emu.main[0x2500];
+    check("SNAKE: 固定节拍推进(蛇头 x=" + hx + ", 应从 24 前移)", hx >= 25 && hx <= 28);
   }
-  emu.typeRaw([1]); // Esc 键码 1(按下+释放; 弹起被忽略, 按下退出)
+  {
+    // 双缓冲正确性: 可见屏幕(0x3000)只经整块拷贝更新, 中间态为几乎相同的新旧帧,
+    // 板面蛇格数允许 len-1..len+2(拷贝扫描线两侧新旧帧各贡献若干格)
+    const len = emu.main[0x2404]; // SNAKE_LEN
+    let fb = 0;
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) {
+      if (emu.main[0x3000 + (y * 96 + x) * 4 + 2] !== 0) fb++;
+    }
+    check("SNAKE: 可见屏幕无错误帧(拷贝中间态, FB=" + fb + "/长 " + len + ")",
+      fb <= len + 2 && fb >= len - 1);
+  }
+  emu.typeRaw([14]); // Esc 键码 1(按下+释放; 弹起被忽略, 按下退出)
   let back = false;
   for (let i = 0; i < 40 && !back && !emu.halted; i++) {
     emu.run(60000);
@@ -375,7 +377,7 @@ emu.type("REBOOT\n");
   check("最终 REBOOT: 先出现 boot 横幅", sawBoot2);
 }
 emu.run(3000000);
-check("最终 REBOOT: 横幅", contains("Sonata DOS v1.0"));
+check("最终 REBOOT: 横幅", contains("Sonata DOS v3.0"));
 check("最终 REBOOT: 默认目录 ~/HOME", contains("[Sonata] ~/HOME #"));
 check("最终 REBOOT: 未死机", !emu.halted);
 emu.type("EXIT\n");

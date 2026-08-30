@@ -38,7 +38,7 @@ export class Emu {
       this.keys.push(0x100 | c, c);
     }
   }
-  // 原始键码(游戏实测: Esc=1, 退格=13)
+  // 原始键码(游戏实测: Esc=14, 退格=13)
   typeRaw(codes) {
     for (const c of codes) this.keys.push(0x100 | c, c);
   }

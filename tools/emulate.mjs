@@ -120,8 +120,8 @@ export class Emu {
     else if (op === 0x03) { set(dest, this.keys.length ? this.keys.shift() : 0); }
     else if (op === 0x04) { this.opts.set(s1, R[s2]); }
     else if (op === 0x14) { this.opts.set(s1, imm); }
-    else if (op === 0x05) { set(dest, this.time0 + this.steps * 126); } // 实测游戏 time_0 ≈ 1.263 亿/秒(按 ~1M 指令/秒折算 126 单位/指令)
-    else if (op === 0x06) { set(dest, 0); }
+    else if (op === 0x05) { set(dest, (this.time0 + this.steps * 1000) >>> 0); } // time_0: 低 32 位(游戏时间 = Unix 纳秒)
+    else if (op === 0x06) { set(dest, Math.floor((this.time0 + this.steps * 1000) / 0x100000000)); } // time_1: 高 32 位(同一时间戳)
     else if (op === 0x07) { set(dest, pc); }
     else if (op === 0x60) { set(dest, this.rd8(R[s2])); }
     else if (op === 0x61) { set(dest, this.rd16(R[s2])); }

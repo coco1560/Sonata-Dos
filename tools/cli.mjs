@@ -5,7 +5,7 @@
 // 用法:
 //   node tools/cli.mjs [选项]
 //   选项:
-//     --speed N    模拟速度, 步/秒(默认 1000000; 贪吃蛇 TICK=31569353/126 ≈ 25 万步 -> 4 格/秒)
+//     --speed N    模拟速度, 步/秒(默认 1000000; 贪吃蛇 TICK=1e9/1000 = 100 万步 -> 1 格/秒)
 //     --fps N      渲染帧率(默认 60)
 //     --boot FILE  汇编的 boot 源(默认 sonata_boot.asm)
 //     --disk FILE  磁盘镜像(默认 sonata_disk.bin)

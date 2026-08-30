@@ -46,10 +46,10 @@ const KEY_S = 0x53
 const KEY_D = 0x44
 
 const FPS = 1                ; 目标帧率(格/秒)
-const TICKS_PER_SEC = 126277413 ; 实测: timecal dt=0x4B446770 / 10 秒
-; 每帧节拍 TICK = TICKS_PER_SEC / FPS = 126277413 = 0x0786D725(超 16 位立即数, 拆 hi/lo 合成)
-const TICK_HI = 0x0786
-const TICK_LO = 0xD725
+const TICKS_PER_SEC = 1000000000 ; 游戏 time_0 = Unix 纳秒(1e9/秒, 由 DATE 反推校准)
+; 每帧节拍 TICK = TICKS_PER_SEC / FPS = 1000000000 = 0x3B9ACA00(超 16 位立即数, 拆 hi/lo 合成)
+const TICK_HI = 0x3B9A
+const TICK_LO = 0xCA00
 const CLR_RED = 0xE0          ; GAME OVER 提示色
 
 ; =====================================================================

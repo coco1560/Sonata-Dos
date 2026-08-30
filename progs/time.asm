@@ -19,7 +19,13 @@ do_time:
   jae do_time_bad
   mov r1, D_time_S_TICKPRE
   call print_str
-  time_0 r1
+  time_0 r11               ; 先低 32 位(游戏在此锁存同一时刻)
+  time_1 r12               ; 再高 32 位(同一个时间戳)
+  mov r1, r12
+  call print_hex
+  mov r1, 0x5F             ; '_' 分隔
+  call print_char
+  mov r1, r11
   call print_hex
   call print_nl
   jmp shell_resume
@@ -46,13 +52,13 @@ time_init:
   or r2, r2, r11
   store_32 [r3], r2
   add r3, r3, 4
-  mov r2, 0x6963
+  mov r2, 0x696D
   lsl r2, r2, 16
-  mov r11, 0x6B73
+  mov r11, 0x653A
   or r2, r2, r11
   store_32 [r3], r2
   add r3, r3, 4
-  mov r2, 0x3A20
+  mov r2, 0x2000
   lsl r2, r2, 16
   store_32 [r3], r2
   add r3, r3, 4

@@ -49,7 +49,7 @@
 const STACKTOP   = 0x7000   ; 栈顶(向下生长到 0x6C00; 0x6C00 以下 = 屏幕)
 const LOAD_BASE  = 0x7400   ; 加载区起点(跳转立即数 16 位 -> 必须 < 0x10000)
 const LOAD_SIZE  = 0x8900   ; 加载区大小 = RTEXE_BASE - LOAD_BASE(堆到 0xFD00 为止)
-const DISK_BASE  = 0        ; 磁盘镜像在外存的起始地址(游戏实测: 外存 0)
+const DISK_BASE  = 0        ; 磁盘镜像在外存的起始地址(外存 0)
 ;
 ; ---------- boot 数据 / DOS 内核共享数据 ----------
 const CROW       = 0x2000   ; 光标行
@@ -131,15 +131,15 @@ const CLR_WHITE  = 0xFF
 const CLR_GREEN  = 0x1C
 const CLR_RED    = 0xE0
 ;
-; ---------- 键盘(实测) ----------
+; ---------- 键盘 ----------
 const KEY_DOWN   = 0x0100
 const KEY_MASK   = 0x00FF
-const RAW_ESC    = 14   ; Esc 键原始码(游戏实测; 非 27/1)
+const RAW_ESC    = 14
 const RAW_BS     = 13
 const RAW_ENTER  = 10
 ;
 ; ---------- ASCII ----------
-const CH_CAPS    = 0x18   ; CapsLock(游戏实测键码)
+const CH_CAPS    = 0x18
 const CH_ENTER   = 0x0D
 const CH_ENTER2  = 0x0A
 const CH_ESC     = 0x1B

@@ -85,7 +85,7 @@ write_key:
   je write_key
   cmp r4, CH_ESC
   je write_commit
-  cmp r9, 14               ; 原始 Esc(游戏实测键码)双保险
+  cmp r9, 14               ; 原始 Esc(14)双保险
   je write_commit
   cmp r9, 0x1B             ; 原始 Esc(27)双保险
   je write_commit

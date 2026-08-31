@@ -44,7 +44,7 @@ const KEY_W = 0x57
 const KEY_A = 0x41
 const KEY_S = 0x53
 const KEY_D = 0x44
-const KEY_ESC = 14         ; Esc 键码(游戏实测)
+const KEY_ESC = 14
 
 ; 自校准指令等待: 启动时空转 320000 次测 time_0 增量(≈0.96 秒@1MHz),
 ; 反算每帧等待次数 = (125,000,000ns × 320000) / 增量  -> 任何时钟频率下

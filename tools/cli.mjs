@@ -51,7 +51,7 @@ emu.loadBoot(boot.bytes);
 emu.loadDisk(fs.readFileSync(DISK_PATH));
 
 // ---------- 调色板: 游戏 8 位色 = RRGGGBBB ----------
-// (实测锚点: 0x1C 绿, 0xE0 红, 0xFC 黄, 0xFF 白; fg=0 为不可见)
+// (0x1C 绿, 0xE0 红, 0xFC 黄, 0xFF 白; fg=0 为不可见)
 function rgbOf(c) {
   return [
     Math.round(((c >> 5) & 7) * 255 / 7),
@@ -113,7 +113,7 @@ function render() {
 }
 
 // ---------- 按键输入 ----------
-const KEY = { ENTER: 10, BACK: 13, ESC: 14, TAB: 9, CAPS: 0x18 }; // Esc = 游戏实测键码
+const KEY = { ENTER: 10, BACK: 13, ESC: 14, TAB: 9, CAPS: 0x18 }; // Esc = 游戏键码
 let escBuf = null, escTimer = null, quitting = false;
 
 function pushKey(c) {

@@ -38,12 +38,12 @@ export class Emu {
       this.keys.push(0x100 | c, c);
     }
   }
-  // 原始键码(游戏实测: Esc=14, 退格=13)
+  // 原始键码(Esc=14, 退格=13)
   typeRaw(codes) {
     for (const c of codes) this.keys.push(0x100 | c, c);
   }
 
-  // 大端序(游戏实测: 外存 32 位字大端, 主内存一致)
+  // 大端序(外存 32 位字大端, 主内存一致)
   rd8(a) { return this.main[a]; }
   rd16(a) { return ((this.main[a] << 8) | this.main[a + 1]) >>> 0; }
   rd32(a) { return ((this.main[a] << 24) | (this.main[a + 1] << 16) | (this.main[a + 2] << 8) | this.main[a + 3]) >>> 0; }

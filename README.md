@@ -168,7 +168,7 @@ node tools/cli.mjs
 ```
 
 - 自动汇编 `sonata_boot.asm` 并装载 `sonata_disk.bin`, 60fps 差异重绘 96x40 屏幕
-  (真彩 ANSI; 游戏调色板 = RRGGGBBB, 实测 0x1C 绿 / 0xE0 红 / 0xFC 黄 / 0xFF 白)
+  (真彩 ANSI; 游戏调色板 = RRGGGBBB, 0x1C 绿 / 0xE0 红 / 0xFC 黄 / 0xFF 白)
 - 键盘实时送入模拟器(按下+弹起事件); **Ctrl+C** 退出, **Ctrl+P** 暂停, **Ctrl+T** 三倍速,
   **Ctrl+K** 发送 CapsLock(0x18); 方向键等转义序列自动忽略
 - 选项: `--speed N` 步/秒(默认 1000000, 贪吃蛇 1 格/秒), `--fps N`(默认 60), `--boot/--disk` 自定义文件,
@@ -181,7 +181,7 @@ node tools/cli.mjs
 
 - `call` 会把返回地址写进 flags 寄存器, 因此 **cmp 后不能隔着 call 用条件跳转**
 - 16 位立即数限制: 大地址用 `mov hi + lsl` 合成
-- 键盘: Enter=10, Backspace=13, Esc=14(游戏实测); 屏幕从 12288 固定读取
+- 键盘: Enter=10, Backspace=13, Esc=14; 屏幕从 12288 固定读取
 - 外存按字节编址, 32 位字大端序; 屏幕格 fg=0 不可见, 打印前需 set_fg(CLR_WHITE)
 - 滚动/清屏/程序加载为 32 位字操作(滚动约 3.1 万条指令/次, 清屏约 2.3 万条);
   其余内存访问使用 8 位字节指令(此前全 32 位化尝试已回退)

@@ -127,7 +127,7 @@ mkexe_key:
   je mkexe_key
   cmp r4, CH_ESC
   je mkexe_commit
-  cmp r8, 14               ; 原始 Esc(游戏实测键码)双保险
+  cmp r8, 14               ; 原始 Esc(14)双保险
   je mkexe_commit
   cmp r8, 0x1B             ; 原始 Esc(27)双保险
   je mkexe_commit

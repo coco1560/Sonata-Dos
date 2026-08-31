@@ -941,6 +941,8 @@ show_banner:
   mov r2, CH_EQ
   call print_fill
   time_0 r1
+  time_1 r2              ; 同一时间戳的高 32 位
+  xor r1, r1, r2
   and r1, r1, HEX_NIB
   cmp r1, Q_COUNT
   jb banner_q

@@ -148,7 +148,7 @@ export function assemble(src, opts = {}) {
   let cur = 0;
 
   const emitWord = (w, isLabel) => {
-    // 大端字节序(游戏实测: 外存按大端读 32 位字, 主内存同样)
+    // 大端字节序(外存按大端读 32 位字, 主内存同样)
     bytes[cur] = (w >>> 24) & 0xff;
     bytes[cur + 1] = (w >>> 16) & 0xff;
     bytes[cur + 2] = (w >>> 8) & 0xff;
